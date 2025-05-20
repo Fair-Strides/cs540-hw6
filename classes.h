@@ -19,10 +19,11 @@ public:
     bio = fields[2];
     manager_id = stoi(fields[3]);
   }
-
-  // Updated: Function to get the size of the record
+  // Function to get the size of the record
   int get_size() {
-    return sizeof(id) + sizeof(manager_id) + sizeof(int) + name.size() + sizeof(int) + bio.size(); // sizeof(int) is for name/bio size() in serialize function
+  // sizeof(int) is for name/bio size() in serialize function
+    return sizeof(id) + sizeof(manager_id) + sizeof(int) + name.size() +
+      sizeof(int) + bio.size();
   }
 
   // Function to serialize the record for writing to file
@@ -50,10 +51,14 @@ public:
 class Page {
 public:
   vector<Record> records; // Data_Area containing the records
-  vector<pair<int, int>> slot_directory; // Slot directory containing offset and size of each record
-  int cur_size = sizeof(int); // Updated: Current size of the page including the overflow page pointer. if you also write the length of slot directory change it accordingly.
-  int overflowPointerIndex; // Offset of overflow page, set to -1 by default
-
+  vector<pair<int, int>> slot_directory; // Slot directory containing offset and
+                                         // size of each record
+  int cur_size = sizeof(int); // Current size of the page including the overflow
+                              // page pointer. if you also write the length of slot directory change it accordingly.
+  int overflowPointerIndex; // Initially set to -1, indicating the page has no
+                            // overflow page.
+                            // Update it to the position of the
+                            // overflow page when one is created.
   // Constructor
   Page() : overflowPointerIndex(-1) {}
 
@@ -61,11 +66,13 @@ public:
   bool insert_record_into_page(Record r) {
     int record_size = r.get_size();
     int slot_size = sizeof(int) * 2;
-    if (cur_size + record_size + slot_size > 4096) { // Updated: Check if page size limit exceeded, considering slot directory size
+    if (cur_size + record_size + slot_size > 4096) {
+      // Check if page size limit exceeded, considering slot directory size
       return false; // Cannot insert the record into this page
     } else {
       records.push_back(r);
-      cur_size += record_size + slot_size; //Updated
+      cur_size += record_size + slot_size;
+      // TODO: update slot directory information
       return true;
     }
   }
@@ -83,10 +90,10 @@ public:
     }
 
     // TODO:
-    //  - Write slot_directory in reverse order into page_data buffer.
-    //  - Write overflowPointerIndex into page_data buffer.
-    //  You should write the first entry of the slot_directory, which have the info about the first record at the bottom of the page, before overflowPointerIndex.
-
+    // - Write slot_directory in reverse order into page_data buffer.
+    // - Write overflowPointerIndex into page_data buffer.
+    // You should write the first entry of the slot_directory, which have the
+    // info about the first record at the bottom of the page, before overflowPointerIndex.
     // Write the page_data buffer to the output stream
     out.write(page_data, sizeof(page_data));
   }
@@ -98,12 +105,14 @@ public:
 
     streamsize bytes_read = in.gcount();
     if (bytes_read == 4096) {
-        // TODO: Process data to fill the records, slot_directory, and overflowPointerIndex
+    // TODO: Process data to fill the records, slot_directory, and
+    //       overflowPointerIndex
       return true;
     }
 
     if (bytes_read > 0) {
-      cerr << "Incomplete read: Expected 4096 bytes, but only read " << bytes_read << " bytes." << endl;
+      cerr << "Incomplete read: Expected 4096 bytes, but only read " <<
+        bytes_read << " bytes." << endl;
     }
 
     return false;
@@ -114,39 +123,46 @@ class HashIndex {
 private:
   const size_t maxCacheSize = 1; // Maximum number of pages in the buffer
   const int Page_SIZE = 4096; // Size of each page in bytes
-  vector<int> PageDirectory; // Map h(id) to a bucket location in EmployeeIndex(e.g., the jth bucket)
+  vector<int> PageDirectory; // Map h(id) to a bucket location in
+                             // EmployeeIndex(e.g., the jth bucket)
   // can scan to correct bucket using j*Page_SIZE as offset (using seek function)
-  // can initialize to a size of 256 (assume that we will never have more than 256 regular (i.e., non-overflow) buckets)
+  // can initialize to a size of 256 (assume that we will never have more than
+  // 256 regular(i.e., non - overflow) buckets)
   int nextFreePage; // Next place to write a bucket
   string fileName;
 
   // Function to compute hash value for a given ID
   int compute_hash_value(int id) {
     int hash_value;
-
-    // TODO: Implement the hash function h = id mod 2^16
+    // TODO: Implement the hash function h = id mod 2^8
     return hash_value;
   }
 
   // Function to add a new record to an existing page in the index file
   void addRecordToIndex(int pageIndex, Page &page, Record &record) {
-      // Open index file in binary mode for updating
+  // Open index file in binary mode for updating
     fstream indexFile(fileName, ios::binary | ios::in | ios::out);
 
     if (!indexFile) {
       cerr << "Error: Unable to open index file for adding record." << endl;
       return;
     }
-
-
-    // Check if the page has overflow
-    if (page.overflowPointerIndex == -1) {
-        // TODO: Create overflow page using nextFreePage. update nextFreePage index and pageIndex
-    }
+    // TODO:
+    // - Use seekp() to seek to the offset of the correct page in the index file
+    // indexFile.seekp(pageIndex * Page_SIZE, ios::beg);
+    // - try insert_record_into_page()
+    // - if it fails, then you'll need to either...
+    // - go to next overflow page and try inserting there
+    //   (keep doing this until you find a spot for the record)
+    // - create an overflow page (if page.overflowPointerIndex == -1) using nextFreePage.
+    //   update nextFreePage index and pageIndex.
 
     // Seek to the appropriate position in the index file
+    // TODO: After inserting the record, write the modified page back to the index file.
+    // Remember to use the correct position (i.e., pageIndex) if
+    // you are writing out an overflow page!
     indexFile.seekp(pageIndex * Page_SIZE, ios::beg);
-    // TODO: Insert record to page and write data to file
+
 
     // Close the index file
     indexFile.close();
@@ -154,7 +170,7 @@ private:
 
   // Function to search for a record by ID in a given page of the index file
   void searchRecordByIdInPage(int pageIndex, int id) {
-      // Open index file in binary mode for reading
+  // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
     // Seek to the appropriate position in the index file
@@ -165,8 +181,8 @@ private:
     page.read_from_data_file(indexFile);
 
     // TODO:
-    //  - Search for the record by ID in the page
-    //  - Check for overflow pages and report if record with given ID is not found
+    // - Search for the record by ID in the page
+    // - Check for overflow pages and report if record with given ID is not found
   }
 
 public:
@@ -175,14 +191,14 @@ public:
 
   // Function to create hash index from Employee CSV file
   void createFromFile(string csvFileName) {
-      // Read CSV file and add records to index
-      // Open the CSV file for reading
+  // Read CSV file and add records to index
+  // Open the CSV file for reading
     ifstream csvFile(csvFileName);
 
     string line;
     // Read each line from the CSV file
     while (getline(csvFile, line)) {
-        // Parse the line and create a Record object
+    // Parse the line and create a Record object
       stringstream ss(line);
       string item;
       vector<string> fields;
@@ -192,11 +208,12 @@ public:
       Record record(fields);
 
       // TODO:
-      //   - Compute hash value for the record's ID using compute_hash_value() function.
-      //   - Get the page index from PageDirectory. If it's not in PageDirectory, define a new page using nextFreePage.
-      //   - Insert the record into the appropriate page in the index file using addRecordToIndex() function.
-
-
+      // - Compute hash value for the record's ID using
+      //   compute_hash_value() function.
+      // - Get the page index from PageDirectory. If it's not in
+      //   PageDirectory, define a new page using nextFreePage.
+      // - Insert the record into the appropriate page in the index file
+      //   using addRecordToIndex() function.
     }
 
     // Close the CSV file
@@ -205,13 +222,12 @@ public:
 
   // Function to search for a record by ID in the hash index
   void findAndPrintEmployee(int id) {
-      // Open index file in binary mode for reading
+  // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
     // TODO:
-    //  - Compute hash value for the given ID using compute_hash_value() function
-    //  - Search for the record in the page corresponding to the hash value using searchRecordByIdInPage() function
-
+    // - Compute hash value for the given ID using compute_hash_value() function
+    // - Search for the record in the page corresponding to the hash value using searchRecordByIdInPage() function
     // Close the index file
     indexFile.close();
   }
