@@ -1,18 +1,18 @@
 #include <bitset>
 #include <cassert>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
-#include <iterator>
-#include <string>
-#include <utility>
+#include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <sstream>
-#include <vector>
+#include <string>
 #include <unordered_map>
-#include <cstring>
-#include <cmath>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -55,9 +55,9 @@ public:
   }
   // Function to get the size of the record
   int get_size() {
-  // sizeof(int) is for name/bio size() in serialize function
+    // sizeof(int) is for name/bio size() in serialize function
     return sizeof(id) + sizeof(manager_id) + sizeof(int) + name.size() +
-      sizeof(int) + bio.size();
+           sizeof(int) + bio.size();
   }
 
   // Function to serialize the record for writing to file
@@ -97,7 +97,7 @@ public:
 
     // Create a new Record object with the deserialized data
     auto fields =
-      vector<string>{ to_string(id), name, bio, to_string(manager_id) };
+        vector<string>{to_string(id), name, bio, to_string(manager_id)};
     auto record = new Record(fields);
     return record;
   }
@@ -112,11 +112,13 @@ public:
 
 class Page {
 public:
-  vector<Record> records; // Data_Area containing the records
+  vector<Record> records;                // Data_Area containing the records
   vector<pair<int, int>> slot_directory; // Slot directory containing offset and
                                          // size of each record
-  int total_records_size = sizeof(int); // Current size of the page including the overflow
-                                        // page pointer. if you also write the length of slot directory change it accordingly.
+  int total_records_size =
+      sizeof(int); // Current size of the page including the overflow
+                   // page pointer. if you also write the length of slot
+                   // directory change it accordingly.
   int slot_directory_size = 0;
   int overflowPointerIndex; // Initially set to -1, indicating the page has no
                             // overflow page.
@@ -129,7 +131,8 @@ public:
   bool insert_record_into_page(Record r) {
     int record_size = r.get_size();
     int slot_size = sizeof(int) * 2;
-    if (total_records_size + record_size + slot_directory_size + slot_size > PAGE_SIZE) {
+    if (total_records_size + record_size + slot_directory_size + slot_size >
+        PAGE_SIZE) {
       // Check if page size limit exceeded, considering slot directory size
       return false; // Cannot insert the record into this page
     } else {
@@ -149,7 +152,7 @@ public:
 
   // Function to write the page to a binary output stream. You may use
   void write_into_data_file(ostream &out) const {
-    char page_data[PAGE_SIZE] = { 0 }; // Buffer to hold page data
+    char page_data[PAGE_SIZE] = {0}; // Buffer to hold page data
     int offset = 0;
 
     // Write records into page_data buffer
@@ -161,11 +164,12 @@ public:
     }
     auto free_space_offset = offset;
 
-    // NOTE: Complete?:
+    // NOTE: Complete:
     // - Write slot_directory in reverse order into page_data buffer.
     // - Write overflowPointerIndex into page_data buffer.
     // You should write the first entry of the slot_directory, which have the
-    // info about the first record at the bottom of the page, before overflowPointerIndex.
+    // info about the first record at the bottom of the page, before
+    // overflowPointerIndex.
 
     // zero pad the empty space
     // Calculate free space using
@@ -174,10 +178,10 @@ public:
     // - the size of the slot directory
     // - the space for the slot directory size and free space offset
     // - the space for the overflow page index
-    size_t free_space_size =
-      sizeof(page_data) - (size_t)offset - (size_t)slot_directory_size - (2 * sizeof(int)) - sizeof(int);
+    size_t free_space_size = sizeof(page_data) - (size_t)offset -
+                             (size_t)slot_directory_size - (3 * sizeof(int));
     debugf("Writing the following sizes: records=%d free=%zd slots=%d\n",
-      offset, free_space_size, slot_directory_size);
+           offset, free_space_size, slot_directory_size);
     memset(page_data + offset, 0, free_space_size);
     offset += (int)free_space_size;
     debugf("write free space\n");
@@ -196,7 +200,8 @@ public:
       offset += write_int_to_memory(page_data + offset, slot.second);
     }
     debugf("writing int offset=%d value=%zd\n", offset, slot_directory.size());
-    offset += write_int_to_memory(page_data + offset, (int)slot_directory.size());
+    offset +=
+        write_int_to_memory(page_data + offset, (int)slot_directory.size());
     offset += write_int_to_memory(page_data + offset, free_space_offset);
 
     // Now handle the Overflow Page Index, even if it's -1
@@ -210,8 +215,8 @@ public:
 
   // Function to read a page from a binary input stream
   bool read_from_data_file(istream &in) {
-    char page_data[PAGE_SIZE] = { 0 }; // Buffer to hold page data
-    in.read(page_data, PAGE_SIZE); // Read data from input stream
+    char page_data[PAGE_SIZE] = {0}; // Buffer to hold page data
+    in.read(page_data, PAGE_SIZE);   // Read data from input stream
 
     streamsize bytes_read = in.gcount();
     if (bytes_read == PAGE_SIZE) {
@@ -231,7 +236,7 @@ public:
 
       int slot_directory_size;
       memcpy(&slot_directory_size, page_data + offset - sizeof(int),
-        sizeof(int));
+             sizeof(int));
       offset -= sizeof(int);
       this->slot_directory_size = slot_directory_size;
 
@@ -253,16 +258,16 @@ public:
 
       // use the slots to parse the data area
       for (const auto &slot : slot_directory) {
-        records.push_back(
-          *Record::deserialize(page_data, (size_t)slot.first, (size_t)slot.second));
+        records.push_back(*Record::deserialize(page_data, (size_t)slot.first,
+                                               (size_t)slot.second));
       }
 
       return true;
     }
 
     if (bytes_read > 0) {
-      cerr << "Incomplete read: Expected " << PAGE_SIZE << " bytes, but only read " <<
-        bytes_read << " bytes." << endl;
+      cerr << "Incomplete read: Expected " << PAGE_SIZE
+           << " bytes, but only read " << bytes_read << " bytes." << endl;
     }
 
     return false;
@@ -272,11 +277,11 @@ public:
 class HashIndex {
 private:
   const size_t maxCacheSize = 1; // Maximum number of pages in the buffer
-  vector<int> PageDirectory; // Map h(id) to a bucket location in
-                             // EmployeeIndex(e.g., the jth bucket)
-  // can scan to correct bucket using j*PAGE_SIZE as offset (using seek function)
-  // can initialize to a size of 256 (assume that we will never have more than
-  // 256 regular(i.e., non - overflow) buckets)
+  vector<int> PageDirectory;     // Map h(id) to a bucket location in
+                                 // EmployeeIndex(e.g., the jth bucket)
+  // can scan to correct bucket using j*PAGE_SIZE as offset (using seek
+  // function) can initialize to a size of 256 (assume that we will never have
+  // more than 256 regular(i.e., non - overflow) buckets)
   int nextFreePage; // Next place to write a bucket
   string fileName;
 
@@ -289,7 +294,7 @@ private:
 
   // Function to add a new record to an existing page in the index file
   void addRecordToIndex(int pageIndex, Page &page, Record &record) {
-  // Open index file in binary mode for updating
+    // Open index file in binary mode for updating
     fstream indexFile(fileName, ios::binary | ios::in | ios::out);
 
     if (!indexFile) {
@@ -303,15 +308,15 @@ private:
     // - if it fails, then you'll need to either...
     // - go to next overflow page and try inserting there
     //   (keep doing this until you find a spot for the record)
-    // - create an overflow page (if page.overflowPointerIndex == -1) using nextFreePage.
+    // - create an overflow page (if page.overflowPointerIndex == -1) using
+    // nextFreePage.
     //   update nextFreePage index and pageIndex.
 
     // Seek to the appropriate position in the index file
-    // TODO: After inserting the record, write the modified page back to the index file.
-    // Remember to use the correct position (i.e., pageIndex) if
-    // you are writing out an overflow page!
+    // TODO: After inserting the record, write the modified page back to the
+    // index file. Remember to use the correct position (i.e., pageIndex) if you
+    // are writing out an overflow page!
     indexFile.seekp(pageIndex * PAGE_SIZE, ios::beg);
-
 
     // Close the index file
     indexFile.close();
@@ -319,7 +324,7 @@ private:
 
   // Function to search for a record by ID in a given page of the index file
   void searchRecordByIdInPage(int pageIndex, int id) {
-  // Open index file in binary mode for reading
+    // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
     // Seek to the appropriate position in the index file
@@ -331,23 +336,23 @@ private:
 
     // TODO:
     // - Search for the record by ID in the page
-    // - Check for overflow pages and report if record with given ID is not found
+    // - Check for overflow pages and report if record with given ID is not
+    // found
   }
 
 public:
-  HashIndex(string indexFileName) : nextFreePage(0), fileName(indexFileName) {
-  }
+  HashIndex(string indexFileName) : nextFreePage(0), fileName(indexFileName) {}
 
   // Function to create hash index from Employee CSV file
   void createFromFile(string csvFileName) {
-  // Read CSV file and add records to index
-  // Open the CSV file for reading
+    // Read CSV file and add records to index
+    // Open the CSV file for reading
     ifstream csvFile(csvFileName);
 
     string line;
     // Read each line from the CSV file
     while (getline(csvFile, line)) {
-    // Parse the line and create a Record object
+      // Parse the line and create a Record object
       stringstream ss(line);
       string item;
       vector<string> fields;
@@ -371,14 +376,13 @@ public:
 
   // Function to search for a record by ID in the hash index
   void findAndPrintEmployee(int id) {
-  // Open index file in binary mode for reading
+    // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
     // TODO:
     // - Compute hash value for the given ID using compute_hash_value() function
-    // - Search for the record in the page corresponding to the hash value using searchRecordByIdInPage() function
-    // Close the index file
+    // - Search for the record in the page corresponding to the hash value using
+    // searchRecordByIdInPage() function Close the index file
     indexFile.close();
   }
 };
-
