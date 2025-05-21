@@ -3,17 +3,21 @@ build +FLAGS='-O3 -Wall -Wextra -Wconversion -Wsign-conversion -Wformat-security
   @echo 'Building project...'
   g++ -std=c++11 {{FLAGS}} main.cpp -o main.out
 
-debug *ARGS: (build '-g')
-  @echo 'Debugging project...'
-  gdb --args main.out {{ARGS}}
+debug *STDIN: (build '-g')
+  #!/usr/bin/env bash
+  set -euxo pipefail
+  echo 'Debugging project...'
+  infile="$(mktemp)"
+  echo {{STDIN}} >"$infile"
+  gdb -ex "set args <$infile" main.out 
 
 clean:
   @echo 'Cleaning project...'
-  rm --recursive --force main.out EmployeeRelation.dat __pycache__/
+  rm --recursive --force main.out EmployeeIndex.dat __pycache__/
 
-run *ARGS: build
+run *STDIN: build
   @echo 'Running project...'
-  ./main.out {{ARGS}}
+  echo {{STDIN}} | ./main.out
 
 test *ARGS: build
   @echo 'Testing project...'

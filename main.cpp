@@ -1,14 +1,13 @@
-#include <string>
+#include "classes.h"
 #include <iostream>
 #include <stdexcept>
-#include "classes.h"
+#include <string>
 
 using namespace std;
 
-
 int main() {
 
-    // Create the index
+  // Create the index
   HashIndex hashIndex("EmployeeIndex");
   hashIndex.createFromFile("Employee.csv");
 
@@ -23,7 +22,6 @@ int main() {
 
   return 0;
 }
-
 
 /*
 HW 5 Code

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
+# pyright: strict
+
 import csv
-import functools
 import shutil
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import override
@@ -44,7 +44,7 @@ class TestEverything(unittest.TestCase):
             _ = csv_file.write("1,Name,Bio,1\n")
 
         _ = run()
-        data_file = Path("EmployeeRelation.dat")
+        data_file = Path("EmployeeIndex.dat")
         self.assertTrue(data_file.exists(), "data file not created")
         self.assertGreater(
             data_file.stat().st_size, 0, "data file empty with nonempty csv"
@@ -62,7 +62,7 @@ class TestEverything(unittest.TestCase):
         ids = [1, 2, 3, 4, 5, 6]
         output = run(*ids)
         self.assertGreater(len(output), 0, "empty output")
-        for id, line in zip(ids, output.splitlines()):
+        for id, line in zip(ids, output.splitlines()[1:]):
             self.assertTrue(
                 line.startswith(f"ID: {id}"),
                 f"missing or malformed find output for existing employee {id=}: {line}",
@@ -80,28 +80,31 @@ class TestEverything(unittest.TestCase):
             self.assertGreater(len(output), 0, "empty output")
 
     def test_provided_csv(self):
-        _ = shutil.copy2(self.init_dir / "Employee.csv", "./Employee.csv")
+        for input_csv in ("Employee.csv", "Employee_large.csv"):
+            with self.subTest(input_csv=input_csv):
+                _ = shutil.copy2(self.init_dir / input_csv, "./Employee.csv")
 
-        with open("Employee.csv", "r") as csv_file:
-            reader = csv.reader(csv_file)
-            ids = map(lambda row: row[0], reader)
-            ids = list(map(int, ids))
+                with open("Employee.csv", "r") as csv_file:
+                    reader = csv.reader(csv_file)
+                    ids = map(lambda row: row[0], reader)
+                    ids = list(map(int, ids))
 
-        try:
-            output = run(*ids)
-            self.assertGreater(len(output), 0, "empty output")
-            for id, line in zip(ids, output.splitlines()):
-                self.assertTrue(
-                    line.startswith(f"ID: {id}"),
-                    f"missing or malformed find output for existing employee {id=}: {line}",
-                )
-        except subprocess.CalledProcessError as e:
-            print(f"error: {e.stdout}\n{e.stderr}")
-            raise e
+                try:
+                    output = run(*ids)
+                    self.assertGreater(len(output), 0, "empty output")
+                    for id, line in zip(ids, output.splitlines()[1:]):
+                        self.assertTrue(
+                            line.startswith(f"ID: {id}"),
+                            f"missing or malformed find output for existing employee {id=}: {line}",
+                        )
+                except subprocess.CalledProcessError as e:
+                    print(f"error: {e.stdout}\n{e.stderr}")  # pyright: ignore [reportAny]
+                    raise e
 
 
 def run(*ids: int) -> str:
+    arguments = " ".join(map(str, ids))
     result = subprocess.run(
-        ["./main.out", *map(str, ids)], capture_output=True, check=True, text=True
+        ["./main.out"], input=arguments, capture_output=True, check=True, text=True
     )
     return result.stdout
