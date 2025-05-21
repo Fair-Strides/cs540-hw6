@@ -300,11 +300,7 @@ private:
   string fileName;
 
   // Function to compute hash value for a given ID
-  int compute_hash_value(int id) {
-    int hash_value;
-    // TODO: Implement the hash function h = id mod 2^8
-    return hash_value;
-  }
+  int compute_hash_value(int id) { return id % (1 << 8); }
 
   // Function to add a new record to an existing page in the index file
   void addRecordToIndex(int pageIndex, Page &page, Record &record) {
