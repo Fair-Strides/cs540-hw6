@@ -17,7 +17,8 @@
 using namespace std;
 
 const bool DEBUG_ENABLED = false;
-const int PAGE_SIZE = 4096; // Size of each page in bytes
+// Size of each page in bytes
+const int PAGE_SIZE = 4096;
 
 int write_int_to_memory(void *dest, int value) {
   auto str = reinterpret_cast<const char *>(value);
@@ -44,8 +45,10 @@ void debugf(const char *format, ...) {
 
 class Record {
 public:
-  int id, manager_id; // Employee ID and their manager's ID
-  string bio, name; // Fixed length string to store employee name and biography
+  // Employee ID and their manager's ID
+  int id, manager_id;
+  // Fixed length string to store employee name and biography
+  string bio, name;
 
   Record(vector<string> &fields) {
     id = stoi(fields[0]);
@@ -112,18 +115,19 @@ public:
 
 class Page {
 public:
-  vector<Record> records;                // Data_Area containing the records
-  vector<pair<int, int>> slot_directory; // Slot directory containing offset and
-                                         // size of each record
-  int total_records_size =
-      sizeof(int); // Current size of the page including the overflow
-                   // page pointer. if you also write the length of slot
-                   // directory change it accordingly.
+  // Data_Area containing the records
+  vector<Record> records;
+  // Slot directory containing offset and size of each record
+  vector<pair<int, int>> slot_directory;
+
+  // Current size of the page including the overflow page pointer. if you also
+  // write the length of slot directory change it accordingly.
+  int total_records_size = sizeof(int);
   int slot_directory_size = 0;
-  int overflowPointerIndex; // Initially set to -1, indicating the page has no
-                            // overflow page.
-                            // Update it to the position of the
-                            // overflow page when one is created.
+  // Initially set to -1, indicating the page has no overflow page. Update it
+  // to the position of the overflow page when one is created.
+  int overflowPointerIndex;
+
   // Constructor
   Page() : overflowPointerIndex(-1) {}
 
@@ -134,7 +138,9 @@ public:
     if (total_records_size + record_size + slot_directory_size + slot_size >
         PAGE_SIZE) {
       // Check if page size limit exceeded, considering slot directory size
-      return false; // Cannot insert the record into this page
+
+      // Cannot insert the record into this page
+      return false;
     } else {
       records.push_back(r);
       total_records_size += record_size;
@@ -152,7 +158,8 @@ public:
 
   // Function to write the page to a binary output stream. You may use
   void write_into_data_file(ostream &out) const {
-    char page_data[PAGE_SIZE] = {0}; // Buffer to hold page data
+    // Buffer to hold page data
+    char page_data[PAGE_SIZE] = {0};
     int offset = 0;
 
     // Write records into page_data buffer
@@ -215,12 +222,14 @@ public:
 
   // Function to read a page from a binary input stream
   bool read_from_data_file(istream &in) {
-    char page_data[PAGE_SIZE] = {0}; // Buffer to hold page data
-    in.read(page_data, PAGE_SIZE);   // Read data from input stream
+    // Buffer to hold page data
+    char page_data[PAGE_SIZE] = {0};
+    // Read data from input stream
+    in.read(page_data, PAGE_SIZE);
 
     streamsize bytes_read = in.gcount();
     if (bytes_read == PAGE_SIZE) {
-      // NOTE: Complete?: Process data to fill the records, slot_directory, and
+      // NOTE: Complete: Process data to fill the records, slot_directory, and
       //       overflowPointerIndex
 
       size_t offset = PAGE_SIZE;
@@ -276,13 +285,18 @@ public:
 
 class HashIndex {
 private:
-  const size_t maxCacheSize = 1; // Maximum number of pages in the buffer
-  vector<int> PageDirectory;     // Map h(id) to a bucket location in
-                                 // EmployeeIndex(e.g., the jth bucket)
-  // can scan to correct bucket using j*PAGE_SIZE as offset (using seek
-  // function) can initialize to a size of 256 (assume that we will never have
-  // more than 256 regular(i.e., non - overflow) buckets)
-  int nextFreePage; // Next place to write a bucket
+  // Maximum number of pages in the buffer
+  const size_t maxCacheSize = 1;
+
+  // Map h(id) to a bucket location in EmployeeIndex(e.g., the jth bucket). Can
+  // scan to correct bucket using j*PAGE_SIZE as offset (using seek function).
+  // Can initialize to a size of 256 (assume that we will never have more than
+  // 256 regular(i.e., non - overflow) buckets)
+  vector<int> PageDirectory;
+
+  // Next place to write a bucket
+  int nextFreePage;
+
   string fileName;
 
   // Function to compute hash value for a given ID
