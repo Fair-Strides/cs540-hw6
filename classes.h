@@ -74,6 +74,34 @@ public:
     return oss.str();
   }
 
+  static Record *deserialize(const char *data, size_t offset, size_t size) {
+    istringstream iss(string(data + offset, size));
+    // char* to integer directly without a string intermediary
+    int id, manager_id, name_size, bio_size;
+
+    // Read the binary representation of the ID.
+    iss.read(reinterpret_cast<char *>(&id), sizeof(int));
+
+    // Read the binary representation of the Manager id
+    iss.read(reinterpret_cast<char *>(&manager_id), sizeof(int));
+
+    // Read the size of the Name in binary format, then retrieve it
+    iss.read(reinterpret_cast<char *>(&name_size), sizeof(int));
+    string name((size_t)name_size, '\0');
+    iss.read(&name[0], name_size);
+
+    // Read the size of the Bio in binary format, then retrieve it
+    iss.read(reinterpret_cast<char *>(&bio_size), sizeof(int));
+    string bio((size_t)bio_size, '\0');
+    iss.read(&bio[0], bio_size);
+
+    // Create a new Record object with the deserialized data
+    auto fields =
+      vector<string>{ to_string(id), name, bio, to_string(manager_id) };
+    auto record = new Record(fields);
+    return record;
+  }
+
   void print() {
     cout << "\tID: " << id << "\n";
     cout << "\tNAME: " << name << "\n";
@@ -187,8 +215,48 @@ public:
 
     streamsize bytes_read = in.gcount();
     if (bytes_read == PAGE_SIZE) {
-    // TODO: Process data to fill the records, slot_directory, and
-    //       overflowPointerIndex
+      // NOTE: Complete?: Process data to fill the records, slot_directory, and
+      //       overflowPointerIndex
+
+      size_t offset = PAGE_SIZE;
+
+      int overflowIndex;
+      memcpy(&overflowIndex, page_data + offset - sizeof(int), sizeof(int));
+      offset -= sizeof(int);
+      this->overflowPointerIndex = overflowIndex;
+
+      int free_space_offset;
+      memcpy(&free_space_offset, page_data + offset - sizeof(int), sizeof(int));
+      offset -= sizeof(int);
+
+      int slot_directory_size;
+      memcpy(&slot_directory_size, page_data + offset - sizeof(int),
+        sizeof(int));
+      offset -= sizeof(int);
+      this->slot_directory_size = slot_directory_size;
+
+      for (int i = 0; i < slot_directory_size; i++) {
+        int record_offset, record_size;
+
+        memcpy(&record_size, page_data + offset - sizeof(int), sizeof(int));
+        offset -= sizeof(int);
+
+        memcpy(&record_offset, page_data + offset - sizeof(int), sizeof(int));
+        offset -= sizeof(int);
+
+        // Adding the record offset and size to the slot directory
+        slot_directory.push_back(pair<int, int>(record_offset, record_size));
+
+        // Update the total record size
+        this->total_records_size += record_size;
+      }
+
+      // use the slots to parse the data area
+      for (const auto &slot : slot_directory) {
+        records.push_back(
+          *Record::deserialize(page_data, (size_t)slot.first, (size_t)slot.second));
+      }
+
       return true;
     }
 
