@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -333,7 +334,7 @@ private:
   }
 
   // Function to search for a record by ID in a given page of the index file
-  void searchRecordByIdInPage(int pageIndex, int id) {
+  unique_ptr<Record> searchRecordByIdInPage(int pageIndex, int id) {
     // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
@@ -385,14 +386,35 @@ public:
   }
 
   // Function to search for a record by ID in the hash index
-  void findAndPrintEmployee(int id) {
+  bool findAndPrintEmployee(int id) {
     // Open index file in binary mode for reading
     ifstream indexFile(fileName, ios::binary | ios::in);
 
     // TODO:
-    // - Compute hash value for the given ID using compute_hash_value() function
+    // - Compute hash value for the given ID using [compute_hash_value] function
     // - Search for the record in the page corresponding to the hash value using
-    // searchRecordByIdInPage() function Close the index file
+    // [searchRecordByIdInPage] function Close the index file
+
+    unique_ptr<Record> record = unique_ptr<Record>();
+
+    auto hash = this->compute_hash_value(id);
+    if (this->PageDirectory.size() <= hash) {
+      int pageIndex = this->PageDirectory.at(hash);
+
+      // TODO: should this be a sentinel?
+      if (pageIndex != -1) {
+        record = this->searchRecordByIdInPage(pageIndex, id);
+      }
+    }
+
     indexFile.close();
+    if (record) {
+      printf("ID: %d\tName: %s\tBio: %s\tManager: %d\n", record->id,
+             record->name.c_str(), record->bio.c_str(), record->manager_id);
+      return true;
+    } else {
+      printf("Record not found: %d\n", id);
+      return false;
+    }
   }
 };
