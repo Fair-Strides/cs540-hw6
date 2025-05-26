@@ -3,3 +3,5 @@ __pycache__/
 main.out
 EmployeeRelation.dat
 .editorconfig
+EmployeeIndex.dat
+DEBUG.txt
