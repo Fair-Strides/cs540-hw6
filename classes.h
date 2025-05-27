@@ -19,7 +19,6 @@
 
 using namespace std;
 
-const bool DEBUG_ENABLED = true;
 // Size of each page in bytes
 const int PAGE_SIZE = 4096;
 
@@ -36,7 +35,8 @@ public:
   string bio, name;
 
   Record(int id, string name, string bio, int manager_id)
-      : id(id), name(name), bio(bio), manager_id(manager_id) {}
+    : id(id), name(name), bio(bio), manager_id(manager_id) {
+  }
 
   Record(vector<string> &fields) {
     id = stoi(fields[0]);
@@ -48,7 +48,7 @@ public:
   int get_size() {
     // sizeof(int) is for name/bio size() in serialize function
     return sizeof(id) + sizeof(manager_id) + sizeof(int) + name.size() +
-           sizeof(int) + bio.size();
+      sizeof(int) + bio.size();
   }
 
   // Function to serialize the record for writing to file
@@ -66,7 +66,7 @@ public:
   }
 
   static unique_ptr<Record> deserialize(const char *data, size_t offset,
-                                        size_t size) {
+    size_t size) {
     int id, manager_id, name_size, bio_size;
     const char *ptr = data + offset;
 
@@ -128,8 +128,8 @@ public:
     int record_size = r.get_size();
     int slot_size = sizeof(int) * 2;
     int total_size = total_records_size + record_size +
-                     (slot_directory.size() * slot_size) + slot_size +
-                     (3 * sizeof(int));
+      (slot_directory.size() * slot_size) + slot_size +
+      (3 * sizeof(int));
     if (total_size > PAGE_SIZE) {
       return false;
     } else {
@@ -150,7 +150,7 @@ public:
     offset = 0;
 
     // Buffer to hold page data
-    char page_data[PAGE_SIZE] = {0};
+    char page_data[PAGE_SIZE] = { 0 };
 
     // Write records into page_data buffer
     for (const auto &record : this->records) {
@@ -169,7 +169,7 @@ public:
     // - the space for the slot directory size and free space offset
     // - the space for the overflow page index
     size_t free_space_size = sizeof(page_data) - (size_t)offset -
-                             (size_t)slot_directory_size - (3 * sizeof(int));
+      (size_t)slot_directory_size - (3 * sizeof(int));
     memset(page_data + offset, 0, free_space_size);
     offset += (int)free_space_size;
 
@@ -188,7 +188,7 @@ public:
       offset += write_int_to_memory(page_data + offset, slot.second);
     }
     offset += write_int_to_memory(page_data + offset,
-                                  (int)this->slot_directory.size());
+      (int)this->slot_directory.size());
     offset += write_int_to_memory(page_data + offset, free_space_offset);
 
     //  Now handle the Overflow Page Index, even if it's -1
@@ -208,7 +208,7 @@ public:
   // Function to read a page from a binary input stream
   bool read_from_data_file(istream &in, size_t offset) {
     // Buffer to hold page data
-    char page_data[PAGE_SIZE] = {0};
+    char page_data[PAGE_SIZE] = { 0 };
 
     // Read data from input stream
     in.seekg(offset, ios::beg);
@@ -217,7 +217,7 @@ public:
     streamsize bytes_read = in.gcount();
     if (bytes_read != PAGE_SIZE) {
       cerr << "Incomplete read: Expected " << PAGE_SIZE
-           << " bytes, but only read " << bytes_read << " bytes." << endl;
+        << " bytes, but only read " << bytes_read << " bytes." << endl;
       return false;
     }
 
@@ -258,7 +258,7 @@ public:
     // use the slots to parse the data area
     for (const auto &slot : slot_directory) {
       records.push_back(*Record::deserialize(page_data, (size_t)slot.first,
-                                             (size_t)slot.second));
+        (size_t)slot.second));
     }
 
     return true;
@@ -356,7 +356,7 @@ private:
 
       if (!pageRead) {
         cerr << "Error! Unable to read page with index: " << pageIndex << "."
-             << endl;
+          << endl;
         return nullptr;
       }
 

@@ -11,13 +11,13 @@ int main() {
   // Create the index
   HashIndex hashIndex("EmployeeIndex.dat");
   // hashIndex.createFromFile("Employee.csv");
-  if (!hashIndex.createFromFile("Employee.csv"))
+  if (!hashIndex.createFromFile("Employee_large.csv"))
     return EXIT_FAILURE;
 
   // Loop to lookup IDs until user is ready to quit
   std::string searchID;
   std::cout << "Enter the employee ID to find or type \"exit\" to terminate: ";
-  while (std::cin >> searchID && searchID != " exit ") {
+  while (std::cin >> searchID && searchID != "exit") {
     int id = std::stoi(searchID);
     std::string record;
 
