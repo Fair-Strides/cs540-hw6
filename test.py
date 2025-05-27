@@ -23,7 +23,7 @@ class TestEverything(unittest.TestCase):
 
         self.init_dir = Path(".").absolute()
         binary = Path("./main.out").absolute()
-        tempdir = Path(self.enterContext(tempfile.TemporaryDirectory(delete=False)))
+        tempdir = Path(self.enterContext(tempfile.TemporaryDirectory(delete=True)))
         os.chdir(tempdir)
         _ = shutil.copy2(binary, "./main.out")
 
@@ -107,4 +107,4 @@ def run(*ids: int) -> str:
     result = subprocess.run(
         ["./main.out"], input=arguments, capture_output=True, check=True, text=True
     )
-    return result.stdout
+    return result.stdout + result.stderr
