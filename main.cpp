@@ -16,19 +16,13 @@ int main() {
 
   // Loop to lookup IDs until user is ready to quit
   std::string searchID;
-  // TODO: replace
-  // std::cout << "Enter the employee ID to find or type \"exit\" to terminate:
-  // ";
+  std::cout << "Enter the employee ID to find or type \"exit\" to terminate: ";
   while (std::cin >> searchID && searchID != " exit ") {
     int id = std::stoi(searchID);
     std::string record;
 
-    // printf("RUNNING WITH id=%d\n", id);
-
     success &= hashIndex.findAndPrintEmployee(id);
   }
-
-  // hashIndex.processPages();
 
   if (success) {
     return EXIT_SUCCESS;
