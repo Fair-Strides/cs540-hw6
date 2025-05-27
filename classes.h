@@ -1,3 +1,7 @@
+// POINTS OF INTEREST
+// - Flushing/cleaning the previous pageIndex.
+// - double seek
+
 #include <bitset>
 #include <cassert>
 #include <cmath>
@@ -38,7 +42,7 @@ void debugf(const char *format, ...) {
   char buffer[1024];
   vsnprintf(buffer, sizeof(buffer), format, args);
   // Print "DEBUG: "
-  //fprintf(stderr, "DEBUG: %s", buffer);
+  // fprintf(stderr, "DEBUG: %s", buffer);
 
   // Print formatted string
   fstream logFile("DEBUG.txt", ios::out | ios::app);
@@ -70,7 +74,7 @@ public:
   int get_size() {
     // sizeof(int) is for name/bio size() in serialize function
     return sizeof(id) + sizeof(manager_id) + sizeof(int) + name.size() +
-      sizeof(int) + bio.size();
+           sizeof(int) + bio.size();
   }
 
   // Function to serialize the record for writing to file
@@ -148,23 +152,27 @@ public:
                      (slot_directory.size() * slot_size) + slot_size +
                      (3 * sizeof(int));
     if (total_size > PAGE_SIZE) {
-    // Check if page size limit exceeded, considering slot directory size
-      debugf("Cannot insert record. Total Size: %d (Total Record Size: %d, Record Size: %d, Slot Directory Size: %d, Slot Size: %d, slot directory info and overflow pointer: %d)\n",
-        total_size, total_records_size, record_size, (slot_directory.size() * 2 * sizeof(int)), slot_size, (3 * sizeof(int)));
-    // Cannot insert the record into this page
+      // Check if page size limit exceeded, considering slot directory size
+      debugf("Cannot insert record. Total Size: %d (Total Record Size: %d, "
+             "Record Size: %d, Slot Directory Size: %d, Slot Size: %d, slot "
+             "directory info and overflow pointer: %d)\n",
+             total_size, total_records_size, record_size,
+             (slot_directory.size() * 2 * sizeof(int)), slot_size,
+             (3 * sizeof(int)));
+      // Cannot insert the record into this page
       return false;
     } else {
       records.push_back(r);
+      int slot_offset = total_records_size;
       total_records_size += record_size;
 
       // NOTE: COMPLETE: update slot directory information
       // NOTE: this would be searched for in a real implementaion where
       //       deletion could occur
-      int slot_offset = total_records_size - record_size;
       slot_directory.push_back(pair<int, int>(slot_offset, record_size));
       slot_directory_size += slot_size;
-      //debugf("Slot directory updated: offset=%d, size=%d\n",
-      //slot_offset, record_size);
+      // debugf("Slot directory updated: offset=%d, size=%d\n",
+      // slot_offset, record_size);
 
       return true;
     }
@@ -173,7 +181,7 @@ public:
   // Function to write the page to a binary output stream. You may use
   void write_into_data_file(ostream &out) const {
     // Buffer to hold page data
-    char page_data[PAGE_SIZE] = { 0 };
+    char page_data[PAGE_SIZE] = {0};
     int offset = 0;
 
     // Write records into page_data buffer
@@ -201,15 +209,16 @@ public:
     // - the size of the slot directory
     // - the space for the slot directory size and free space offset
     // - the space for the overflow page index
-    //debugf("Calculating free space size.\n");
+    // debugf("Calculating free space size.\n");
     size_t free_space_size = sizeof(page_data) - (size_t)offset -
-      (size_t)slot_directory_size - (3 * sizeof(int));
-    // debugf("Free space size calculated: %zd (%zd[page_data] - %d[offset] - %d[slot_directory_size] - %zd[3*sizeof(int)])\n",
+                             (size_t)slot_directory_size - (3 * sizeof(int));
+    // debugf("Free space size calculated: %zd (%zd[page_data] - %d[offset] -
+    // %d[slot_directory_size] - %zd[3*sizeof(int)])\n",
     //   free_space_size, sizeof(page_data), offset, slot_directory_size,
     //   (3 * sizeof(int)));
     // debugf("Writing the following sizes: records=%d free=%zd slots=%d\n",
     //   offset, free_space_size, slot_directory_size);
-    //debugf("Free space size: %zd bytes\n", free_space_size);
+    // debugf("Free space size: %zd bytes\n", free_space_size);
     memset(page_data + offset, 0, free_space_size);
     offset += (int)free_space_size;
     // debugf("write free space\n");
@@ -221,37 +230,40 @@ public:
     // slot 1
     // ...
     // slot N
-    //debugf("Writing slot directory to page data buffer\n");
+    // debugf("Writing slot directory to page data buffer\n");
     for (int i = (int)slot_directory.size() - 1; i >= 0; i--) {
       auto slot = slot_directory.at((size_t)i);
 
       offset += write_int_to_memory(page_data + offset, slot.first);
       offset += write_int_to_memory(page_data + offset, slot.second);
     }
-    //debugf("Slot directory written, offset is now %d\n", offset);
-    //debugf("writing int offset=%d value=%zd\n", offset, slot_directory.size());
+    // debugf("Slot directory written, offset is now %d\n", offset);
+    // debugf("writing int offset=%d value=%zd\n", offset,
+    // slot_directory.size());
     offset +=
-      write_int_to_memory(page_data + offset, (int)slot_directory.size());
+        write_int_to_memory(page_data + offset, (int)slot_directory.size());
     offset += write_int_to_memory(page_data + offset, free_space_offset);
 
-    //debugf("Free space offset written, offset is now %d\n", offset);
-    // Now handle the Overflow Page Index, even if it's -1
+    // debugf("Free space offset written, offset is now %d\n", offset);
+    //  Now handle the Overflow Page Index, even if it's -1
     offset += write_int_to_memory(page_data + offset, overflowPointerIndex);
-    //debugf("Overflow pointer index (%d) written, offset is now %d\n", overflowPointerIndex, offset);
+    // debugf("Overflow pointer index (%d) written, offset is now %d\n",
+    // overflowPointerIndex, offset);
 
     assert(offset == PAGE_SIZE);
 
     // Write the page_data buffer to the output stream
     out.write(page_data, sizeof(page_data));
-    debugf("Wrote page with %d records, total size %d, slot directory count %d, slot directory size %d, overflow pointer index %d\n",
-      (int)records.size(), total_records_size, slot_directory.size(), slot_directory_size,
-      overflowPointerIndex);
+    debugf("Wrote page with %d records, total size %d, slot directory count "
+           "%d, slot directory size %d, overflow pointer index %d\n",
+           (int)records.size(), total_records_size, slot_directory.size(),
+           slot_directory_size, overflowPointerIndex);
   }
 
   // Function to read a page from a binary input stream
   bool read_from_data_file(istream &in) {
     // Buffer to hold page data
-    char page_data[PAGE_SIZE] = { 0 };
+    char page_data[PAGE_SIZE] = {0};
     // Read data from input stream
     in.read(page_data, PAGE_SIZE);
 
@@ -265,9 +277,11 @@ public:
       int overflowIndex;
       memcpy(&overflowIndex, page_data + offset - sizeof(int), sizeof(int));
       offset -= sizeof(int);
-      debugf("Page overflow pointer before reading: %d\n", this->overflowPointerIndex);
+      debugf("Page overflow pointer before reading: %d\n",
+             this->overflowPointerIndex);
       this->overflowPointerIndex = overflowIndex;
-      debugf("Page overflow pointer after reading: %d\n", this->overflowPointerIndex);
+      debugf("Page overflow pointer after reading: %d\n",
+             this->overflowPointerIndex);
 
       int free_space_offset;
       memcpy(&free_space_offset, page_data + offset - sizeof(int), sizeof(int));
@@ -275,10 +289,13 @@ public:
 
       int slot_directory_size;
       memcpy(&slot_directory_size, page_data + offset - sizeof(int),
-        sizeof(int));
+             sizeof(int));
       offset -= sizeof(int);
       this->slot_directory_size = slot_directory_size;
-      debugf("Slot Directory Size: %d, Slot Directory actual size: %d, record count: %d\n", slot_directory_size, (int)slot_directory.size(), (int)records.size());
+      debugf("Slot Directory Size: %d, Slot Directory actual size: %d, record "
+             "count: %d\n",
+             slot_directory_size, (int)slot_directory.size(),
+             (int)records.size());
       for (int i = 0; i < slot_directory_size; i++) {
         int record_offset, record_size;
 
@@ -299,20 +316,20 @@ public:
       // use the slots to parse the data area
       for (const auto &slot : slot_directory) {
         records.push_back(*Record::deserialize(page_data, (size_t)slot.first,
-          (size_t)slot.second));
+                                               (size_t)slot.second));
       }
 
       debugf("Read page in with # of records %d, total size %d, "
-        "slot directory size %d, overflow pointer index %d\n",
-        (int)records.size(), total_records_size, slot_directory_size,
-        overflowPointerIndex);
+             "slot directory size %d, overflow pointer index %d\n",
+             (int)records.size(), total_records_size, slot_directory_size,
+             overflowPointerIndex);
 
       return true;
     }
 
     if (bytes_read >= 0) {
       cerr << "Incomplete read: Expected " << PAGE_SIZE
-        << " bytes, but only read " << bytes_read << " bytes." << endl;
+           << " bytes, but only read " << bytes_read << " bytes." << endl;
     }
 
     return false;
@@ -346,7 +363,9 @@ private:
   // Function to compute hash value for a given ID
   int compute_hash_value(long long int id) { return id % (1 << 8); }
 
-  // Function to add a new record to an existing page in the index file
+  // Function to add a new record to an existing page in the index file.
+  //
+  // Returns the page index that was inserted into
   int addRecordToIndex(int pageIndex, Page &page, Record &record) {
     // Open index file in binary mode for updating
     fstream indexFile(fileName, ios::binary | ios::in | ios::out);
@@ -363,22 +382,25 @@ private:
     //   update nextFreePage index and pageIndex.
     indexFile.seekp(pageIndex * PAGE_SIZE, ios::beg);
     debugf("Attempting to write record with ID: %d to page index: %d\n",
-      record.id, pageIndex);
+           record.id, pageIndex);
     bool inserted = page.insert_record_into_page(record);
     while (!inserted) {
-      debugf("Failed to insert record with ID: %d into page index: %d. Checking overflow page %d\n",
-        record.id, pageIndex, page.overflowPointerIndex);
+      debugf("Failed to insert record with ID: %d into page index: %d. "
+             "Checking overflow page %d\n",
+             record.id, pageIndex, page.overflowPointerIndex);
       // If it failed, we need to see if there's an existing override page.
-      // If not, then we update the info and insert the record into our new page.
+      // If not, then we update the info and insert the record into our new
+      // page.
       if (page.overflowPointerIndex == -1) {
         page.overflowPointerIndex = nextFreePage;
-        debugf("Page with ID %d has no overflow page. Assigning new overflow page index: %d\n",
-          pageIndex, nextFreePage);
+        debugf("Page with ID %d has no overflow page. Assigning new overflow "
+               "page index: %d\n",
+               pageIndex, nextFreePage);
         nextFreePage++;
         // Write out the page now so we have our overflow page set up
         page.write_into_data_file(indexFile);
-        // debugf("Page with ID %d had the following records in it: \n", pageIndex);
-        // for (auto &r : page.records) {
+        // debugf("Page with ID %d had the following records in it: \n",
+        // pageIndex); for (auto &r : page.records) {
         //   debugf("\tID: %d, Name: %s\n", r.id, r.name.c_str());
         // }
         pageIndex = page.overflowPointerIndex;
@@ -386,7 +408,8 @@ private:
         // Reset the page since we can only have one in memory
         page.reset();
         debugf("Creating new overflow page with index: %d\n", nextFreePage - 1);
-        debugf("Resetting page for overflow insertion. Now has %d records.\n", page.records.size());
+        debugf("Resetting page for overflow insertion. Now has %d records.\n",
+               page.records.size());
       }
       // If there *is* an overflow page, then we start a chain of
       // insert attempts until we either succeed or we have to make a new
@@ -400,8 +423,8 @@ private:
         pageRead = page.read_from_data_file(indexFile);
 
         if (!pageRead) {
-          cerr << "Error! Unable to read overflow page with index: " << pageIndex
-            << "." << endl;
+          cerr << "Error! Unable to read overflow page with index: "
+               << pageIndex << "." << endl;
           page.reset();
           return pageIndex;
         }
@@ -411,7 +434,7 @@ private:
       inserted = page.insert_record_into_page(record);
     }
     debugf("Successfully inserted record with ID: %d into page index: %d\n",
-      record.id, pageIndex);
+           record.id, pageIndex);
 
     // Seek to the appropriate position in the index file
     // TODO: After inserting the record, write the modified page back to the
@@ -419,12 +442,12 @@ private:
     // are writing out an overflow page!
     indexFile.seekp(pageIndex * PAGE_SIZE, ios::beg);
     debugf("Writing page with index: %d, overflow index: %d\n", pageIndex,
-      page.overflowPointerIndex);
+           page.overflowPointerIndex);
     try {
       page.write_into_data_file(indexFile);
     } catch (const exception &e) {
       cerr << "Error writing page with index: " << pageIndex
-        << ". Exception: " << e.what() << endl;
+           << ". Exception: " << e.what() << endl;
       return pageIndex;
     }
     // debugf("Page with ID %d had the following records in it: \n", pageIndex);
@@ -463,14 +486,14 @@ private:
       pageRead = page.read_from_data_file(indexFile);
 
       if (!pageRead) {
-        cerr << "Error! Unable to read page with index: " << pageIndex
-          << "." << endl;
+        cerr << "Error! Unable to read page with index: " << pageIndex << "."
+             << endl;
         return nullptr;
       }
 
       for (const auto &record : page.records) {
         if (record.id == id) {
-          unique_ptr<Record> recordPtr((Record *)new Record(record));
+          unique_ptr<Record> recordPtr(new Record(record));
           return recordPtr;
         }
       }
@@ -520,8 +543,8 @@ public:
       recordCount++;
       if (recordCount > 15000)
         break; // For testing purposes, limit to 15000 records
-      printf("Processing record %d: ID=%d, Name=%s\n", recordCount,
-        record.id, record.name.c_str());
+      printf("Processing record %d: ID=%d, Name=%s\n", recordCount, record.id,
+             record.name.c_str());
 
       // TODO:
       // - Compute hash value for the record's ID using
@@ -535,17 +558,17 @@ public:
 
       // Check if the page index is valid
       if (pageIndex == -1) {
+        page = Page(); // in theory
+        // page.reset();
+
         pageIndex = this->nextFreePage;
-
-        // Create a new page and add it to the pageDirectory
-        page.reset();
-
         this->PageDirectory[recordHash] = pageIndex;
         this->nextFreePage++;
       } else if (pageIndex != curPageIndex) {
         // Switch pages via reload.
-        debugf("Pre-insert Index is changed. Switching from page index: %d to %d. Overflow Point before: %d\n",
-          curPageIndex, pageIndex, page.overflowPointerIndex);
+        debugf("Pre-insert Index is changed. Switching from page index: %d to "
+               "%d. Overflow Point before: %d\n",
+               curPageIndex, pageIndex, page.overflowPointerIndex);
         page.reset();
         fstream indexFile(this->fileName, ios::binary | ios::in | ios::out);
         indexFile.seekp(pageIndex * PAGE_SIZE, ios::beg);
@@ -553,20 +576,19 @@ public:
         indexFile.close();
         if (!page_read) {
           cerr << "Error reading page with index: " << pageIndex
-            << ". Resetting page." << endl;
+               << ". Resetting page." << endl;
           page.reset();
         } else {
 
-          debugf("Overflow Point after: %d\n",
-            page.overflowPointerIndex);
+          debugf("Overflow Point after: %d\n", page.overflowPointerIndex);
 
           curPageIndex = pageIndex;
         }
       }
 
       // Add the record to the index file
-      debugf("Adding record (ID: %d, Hash: %d) to page index: %d\n",
-        record.id, recordHash, pageIndex);
+      debugf("Adding record (ID: %d, Hash: %d) to page index: %d\n", record.id,
+             recordHash, pageIndex);
       pageIndex = this->addRecordToIndex(pageIndex, page, record);
     }
 
@@ -590,8 +612,9 @@ public:
     printf("Searching for record with ID: %d, hash value: %d\n", id, hash);
     if (hash < this->PageDirectory.size()) {
       int pageIndex = this->PageDirectory.at(hash);
-      debugf("Searching for record with ID: %d in page index: %d and hash value: %d\n", id,
-        pageIndex, hash);
+      debugf("Searching for record with ID: %d in page index: %d and hash "
+             "value: %d\n",
+             id, pageIndex, hash);
       // TODO: should this be a sentinel?
       if (pageIndex != -1) {
         record = this->searchRecordByIdInPage(pageIndex, id);
@@ -600,8 +623,8 @@ public:
 
     indexFile.close();
     if (record) {
-      //printf("ID: %d\tName: %s\tBio: %s\tManager: %d\n", record->id,
-        // record->name.c_str(), record->bio.c_str(), record->manager_id);
+      // printf("ID: %d\tName: %s\tBio: %s\tManager: %d\n", record->id,
+      //  record->name.c_str(), record->bio.c_str(), record->manager_id);
       record->print();
       cout << "Record found: " << id << endl;
       return true;
@@ -627,9 +650,10 @@ public:
       indexFile.seekg(pageCount * PAGE_SIZE, ios::beg);
       if (pageRead = page.read_from_data_file(indexFile)) {
         cout << "Page " << pageCount << " contains " << page.records.size()
-          << " records." << endl;
+             << " records." << endl;
       } else {
-        cout << "Page " << pageCount << " is empty or could not be read." << endl;
+        cout << "Page " << pageCount << " is empty or could not be read."
+             << endl;
       }
 
       pageCount++;
