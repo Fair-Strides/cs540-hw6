@@ -57,6 +57,9 @@ public:
   // Fixed length string to store employee name and biography
   string bio, name;
 
+  Record(int id, string name, string bio, int manager_id)
+      : id(id), name(name), bio(bio), manager_id(manager_id) {}
+
   Record(vector<string> &fields) {
     id = stoi(fields[0]);
     name = fields[1];
@@ -84,36 +87,31 @@ public:
     return oss.str();
   }
 
-  static Record *deserialize(const char *data, size_t offset, size_t size) {
-    istringstream iss(string(data + offset, size));
-    // char* to integer directly without a string intermediary
+  static unique_ptr<Record> deserialize(const char *data, size_t offset,
+                                        size_t size) {
     int id, manager_id, name_size, bio_size;
 
-    // Read the binary representation of the ID.
-    iss.read(reinterpret_cast<char *>(&id), sizeof(int));
+    const char *ptr = data + offset;
 
-    // Read the binary representation of the Manager id
-    iss.read(reinterpret_cast<char *>(&manager_id), sizeof(int));
+    memcpy(&id, ptr, sizeof(int));
+    ptr += sizeof(id);
 
-    // Read the size of the Name in binary format, then retrieve it
-    iss.read(reinterpret_cast<char *>(&name_size), sizeof(int));
-    string name((size_t)name_size, '\0');
-    iss.read(&name[0], name_size);
+    memcpy(&manager_id, ptr, sizeof(int));
+    ptr += sizeof(manager_id);
 
-    // Read the size of the Bio in binary format, then retrieve it
-    iss.read(reinterpret_cast<char *>(&bio_size), sizeof(int));
-    string bio((size_t)bio_size, '\0');
-    iss.read(&bio[0], bio_size);
-    debugf("--Deserialized Record: ID=%d, Name size=%d, Bio size=%d, Manager ID=%d\n",
-      id, name_size, bio_size, manager_id);
+    memcpy(&name_size, ptr, sizeof(int));
+    ptr += sizeof(name_size);
 
-    // Create a new Record object with the deserialized data
-    auto fields =
-      vector<string>{ to_string(id), name, bio, to_string(manager_id) };
-    auto record = new Record(fields);
-    // debugf("Created Record: ID=%d, Name=%s, Bio=%s, Manager ID=%d\n",
-    //   record->id, record->name.c_str(), record->bio.c_str(), record->manager_id);
-    return record;
+    auto name = string(ptr, (size_t)name_size);
+    ptr += name_size;
+
+    memcpy(&bio_size, ptr, sizeof(int));
+    ptr += sizeof(bio_size);
+
+    auto bio = string(ptr, (size_t)bio_size);
+    ptr += bio_size;
+
+    return unique_ptr<Record>(new Record(id, name, bio, manager_id));
   }
 
   void print() {
@@ -133,7 +131,7 @@ public:
 
   // Current size of the page including the overflow page pointer. if you also
   // write the length of slot directory change it accordingly.
-  int total_records_size = sizeof(int);
+  int total_records_size = 0;
   int slot_directory_size = 0;
   // Initially set to -1, indicating the page has no overflow page. Update it
   // to the position of the overflow page when one is created.
@@ -146,8 +144,9 @@ public:
   bool insert_record_into_page(Record r) {
     int record_size = r.get_size();
     int slot_size = sizeof(int) * 2;
-    int total_size = total_records_size + record_size + (slot_directory.size() * 2 * sizeof(int)) + slot_size +
-      (3 * sizeof(int));
+    int total_size = total_records_size + record_size +
+                     (slot_directory.size() * slot_size) + slot_size +
+                     (3 * sizeof(int));
     if (total_size > PAGE_SIZE) {
     // Check if page size limit exceeded, considering slot directory size
       debugf("Cannot insert record. Total Size: %d (Total Record Size: %d, Record Size: %d, Slot Directory Size: %d, Slot Size: %d, slot directory info and overflow pointer: %d)\n",
