@@ -1,7 +1,3 @@
-// POINTS OF INTEREST
-// - Flushing/cleaning the previous pageIndex.
-// - double seek
-
 #include <bitset>
 #include <cassert>
 #include <cmath>
@@ -28,8 +24,7 @@ const bool DEBUG_ENABLED = true;
 const int PAGE_SIZE = 4096;
 
 int write_int_to_memory(void *dest, int value) {
-  auto str = reinterpret_cast<const char *>(value);
-  memcpy(dest, &str, sizeof(int));
+  memcpy(dest, &value, sizeof(int));
   return sizeof(int);
 }
 
@@ -170,17 +165,15 @@ public:
       // Cannot insert the record into this page
       return false;
     } else {
-      records.push_back(r);
+      records.push_back(std::move(r)); // TODO: does this help?
       int slot_offset = total_records_size;
       total_records_size += record_size;
 
       // NOTE: COMPLETE: update slot directory information
       // NOTE: this would be searched for in a real implementaion where
       //       deletion could occur
-      slot_directory.push_back(pair<int, int>(slot_offset, record_size));
+      slot_directory.emplace_back(slot_offset, record_size);
       slot_directory_size += slot_size;
-      // debugf("Slot directory updated: offset=%d, size=%d\n",
-      // slot_offset, record_size);
 
       return true;
     }
@@ -188,15 +181,13 @@ public:
 
   // Function to write the page to a binary output stream. You may use
   void write_into_data_file(ostream &out, size_t offset) const {
-    out.seekp(offset, ios::beg);
+    auto target_offset = offset;
     offset = 0;
 
     // Buffer to hold page data
     char page_data[PAGE_SIZE] = {0};
 
     // Write records into page_data buffer
-    // debugf("Writing %d records to page data buffer\n",
-    //   (int)records.size());
     for (const auto &record : this->records) {
       string serialized = record.serialize();
       memcpy(page_data + offset, serialized.c_str(), serialized.size());
@@ -219,52 +210,40 @@ public:
     // - the size of the slot directory
     // - the space for the slot directory size and free space offset
     // - the space for the overflow page index
-    // debugf("Calculating free space size.\n");
     size_t free_space_size = sizeof(page_data) - (size_t)offset -
                              (size_t)slot_directory_size - (3 * sizeof(int));
-    // debugf("Free space size calculated: %zd (%zd[page_data] - %d[offset] -
-    // %d[slot_directory_size] - %zd[3*sizeof(int)])\n",
-    //   free_space_size, sizeof(page_data), offset, slot_directory_size,
-    //   (3 * sizeof(int)));
-    // debugf("Writing the following sizes: records=%d free=%zd slots=%d\n",
-    //   offset, free_space_size, slot_directory_size);
-    // debugf("Free space size: %zd bytes\n", free_space_size);
     memset(page_data + offset, 0, free_space_size);
     offset += (int)free_space_size;
-    // debugf("write free space\n");
 
     // REVERSED:
+    // overflow
     // offset
     // length of slot directory
     // slot 0
     // slot 1
     // ...
     // slot N
-    // debugf("Writing slot directory to page data buffer\n");
     for (int i = (int)this->slot_directory.size() - 1; i >= 0; i--) {
       auto slot = this->slot_directory.at((size_t)i);
 
       offset += write_int_to_memory(page_data + offset, slot.first);
       offset += write_int_to_memory(page_data + offset, slot.second);
     }
-    // debugf("Slot directory written, offset is now %d\n", offset);
-    // debugf("writing int offset=%d value=%zd\n", offset,
-    // slot_directory.size());
     offset += write_int_to_memory(page_data + offset,
                                   (int)this->slot_directory.size());
     offset += write_int_to_memory(page_data + offset, free_space_offset);
 
-    // debugf("Free space offset written, offset is now %d\n", offset);
     //  Now handle the Overflow Page Index, even if it's -1
     auto pleasepleaseplease = this->overflowPointerIndex;
     offset += write_int_to_memory(page_data + offset, pleasepleaseplease);
-    // debugf("Overflow pointer index (%d) written, offset is now %d\n",
-    // overflowPointerIndex, offset);
 
     assert(offset == PAGE_SIZE);
 
     // Write the page_data buffer to the output stream
-    out.write(page_data, sizeof(page_data) + sizeof(int));
+    out.flush();
+    out.seekp(target_offset, ios::beg);
+    out.write(page_data, sizeof(page_data));
+    out.flush();
     debugf("Wrote page with %d records, total size %d, slot directory count "
            "%d, slot directory size %d, overflow pointer index %d\n",
            (int)records.size(), total_records_size, slot_directory.size(),
@@ -273,92 +252,90 @@ public:
 
   // Function to read a page from a binary input stream
   bool read_from_data_file(istream &in, size_t offset) {
-    in.seekg(offset, ios::beg);
-
     // Buffer to hold page data
     char page_data[PAGE_SIZE] = {0};
+
     // Read data from input stream
+    in.seekg(offset, ios::beg);
     in.read(page_data, PAGE_SIZE);
 
     streamsize bytes_read = in.gcount();
-    if (bytes_read == PAGE_SIZE) {
-      // NOTE: Complete: Process data to fill the records, slot_directory, and
-      //       overflowPointerIndex
-
-      size_t offset = PAGE_SIZE;
-
-      int overflowIndex;
-      memcpy(&overflowIndex, page_data + offset - sizeof(int), sizeof(int));
-      offset -= sizeof(int);
-      debugf("Page overflow pointer before reading: %d\n",
-             this->overflowPointerIndex);
-      this->overflowPointerIndex = overflowIndex;
-      debugf("Page overflow pointer after reading: %d\n",
-             this->overflowPointerIndex);
-
-      int free_space_offset;
-      memcpy(&free_space_offset, page_data + offset - sizeof(int), sizeof(int));
-      offset -= sizeof(int);
-
-      int slot_directory_size;
-      memcpy(&slot_directory_size, page_data + offset - sizeof(int),
-             sizeof(int));
-      offset -= sizeof(int);
-      this->slot_directory_size = slot_directory_size;
-      debugf("Slot Directory Size: %d, Slot Directory actual size: %d, record "
-             "count: %d\n",
-             slot_directory_size, (int)slot_directory.size(),
-             (int)records.size());
-      for (int i = 0; i < slot_directory_size; i++) {
-        int record_offset, record_size;
-
-        memcpy(&record_size, page_data + offset - sizeof(int), sizeof(int));
-        offset -= sizeof(int);
-
-        memcpy(&record_offset, page_data + offset - sizeof(int), sizeof(int));
-        offset -= sizeof(int);
-
-        // Adding the record offset and size to the slot directory
-        slot_directory.push_back(pair<int, int>(record_offset, record_size));
-
-        // Update the total record size
-        this->total_records_size += record_size;
-      }
-      this->slot_directory_size = slot_directory_size * sizeof(int) * 2;
-
-      // use the slots to parse the data area
-      for (const auto &slot : slot_directory) {
-        records.push_back(*Record::deserialize(page_data, (size_t)slot.first,
-                                               (size_t)slot.second));
-      }
-
-      debugf("Read page in with # of records %d, total size %d, "
-             "slot directory size %d, overflow pointer index %d\n",
-             (int)records.size(), total_records_size, slot_directory_size,
-             overflowPointerIndex);
-
-      return true;
-    }
-
-    if (bytes_read >= 0) {
+    if (bytes_read != PAGE_SIZE) {
       cerr << "Incomplete read: Expected " << PAGE_SIZE
            << " bytes, but only read " << bytes_read << " bytes." << endl;
+      return false;
     }
 
-    return false;
-  }
+    // NOTE: Complete: Process data to fill the records, slot_directory, and
+    //       overflowPointerIndex
 
-  void reset() {
-    records = vector<Record>();
-    slot_directory = vector<pair<int, int>>();
-    total_records_size = 0;
-    slot_directory_size = 0;
-    overflowPointerIndex = -1;
+    // do so backwards
+    offset = PAGE_SIZE;
+
+    int overflowIndex;
+    memcpy(&overflowIndex, page_data + offset - sizeof(int), sizeof(int));
+    offset -= sizeof(int);
+
+    debugf("Page overflow pointer before reading: %d\n",
+           this->overflowPointerIndex);
+    this->overflowPointerIndex = overflowIndex;
+    debugf("Page overflow pointer after reading: %d\n",
+           this->overflowPointerIndex);
+
+    int free_space_offset;
+    memcpy(&free_space_offset, page_data + offset - sizeof(int), sizeof(int));
+    offset -= sizeof(int);
+
+    int slot_directory_size;
+    memcpy(&slot_directory_size, page_data + offset - sizeof(int), sizeof(int));
+    offset -= sizeof(int);
+    this->slot_directory_size = slot_directory_size;
+    debugf("Slot Directory Size: %d, Slot Directory actual size: %d, record "
+           "count: %d\n",
+           slot_directory_size, (int)slot_directory.size(),
+           (int)records.size());
+    for (int i = 0; i < slot_directory_size; i++) {
+      int record_offset, record_size;
+
+      memcpy(&record_size, page_data + offset - sizeof(int), sizeof(int));
+      offset -= sizeof(int);
+
+      memcpy(&record_offset, page_data + offset - sizeof(int), sizeof(int));
+      offset -= sizeof(int);
+
+      // Adding the record offset and size to the slot directory
+      slot_directory.emplace_back(record_offset, record_size);
+
+      // Update the total record size
+      this->total_records_size += record_size;
+    }
+    this->slot_directory_size = slot_directory_size * sizeof(int) * 2;
+
+    // use the slots to parse the data area
+    for (const auto &slot : slot_directory) {
+      records.push_back(*Record::deserialize(page_data, (size_t)slot.first,
+                                             (size_t)slot.second));
+    }
+
+    debugf("Read page in with # of records %d, total size %d, "
+           "slot directory size %d, overflow pointer index %d\n",
+           (int)records.size(), total_records_size, slot_directory_size,
+           overflowPointerIndex);
+
+    return true;
   }
 };
 
 class HashIndex {
 private:
+  class FileCloser {
+    std::fstream &file;
+
+  public:
+    explicit FileCloser(std::fstream &f) : file(f) {}
+    ~FileCloser() { file.close(); }
+  };
+
   // Maximum number of pages in the buffer
   const size_t maxCacheSize = 1;
 
@@ -374,7 +351,7 @@ private:
   string fileName;
 
   // Function to compute hash value for a given ID
-  int compute_hash_value(long long int id) { return id % (1 << 8); }
+  int compute_hash_value(int id) { return id % (1 << 8); }
 
   // Function to add a new record to an existing page in the index file.
   //
@@ -382,6 +359,7 @@ private:
   void addRecordToIndex(int pageIndex, Page &page, Record &record) {
     // Open index file in binary mode for updating
     fstream indexFile(fileName, ios::binary | ios::in | ios::out);
+    FileCloser closer(indexFile);
 
     // TODO:
     // - Use seekp() to seek to the offset of the correct page in the index file
@@ -528,8 +506,6 @@ public:
       }
       recordCount++;
       Record record(fields);
-      if (recordCount > 15000)
-        break; // For testing purposes, limit to 15000 records
       debugf("Processing record %d: ID=%d, Name=%s\n", recordCount, record.id,
              record.name.c_str());
 
@@ -544,12 +520,15 @@ public:
       int pageIndex = this->PageDirectory.at(bucket);
 
       // Check if the page index is valid
+      page = Page();
       if (pageIndex == -1) {
-        page = Page();
-
         pageIndex = this->nextFreePage;
         this->PageDirectory[bucket] = pageIndex;
         this->nextFreePage++;
+      } else {
+        ifstream ifs(this->fileName, ios::binary | ios::in);
+        page.read_from_data_file(ifs, pageIndex * PAGE_SIZE);
+        ifs.close();
       }
 
       // Add the record to the index file
@@ -600,54 +579,5 @@ public:
       cout << "Record not found: " << id << endl;
       return false;
     }
-  }
-
-  void processPages() {
-    // Open the index file in binary mode for reading
-    ifstream indexFile(fileName, ios::binary | ios::in);
-    if (!indexFile.is_open()) {
-      cerr << "Error: Unable to open index file." << endl;
-      return;
-    }
-
-    std::set<int> page_indices;
-    for (const int primary_index : this->PageDirectory) {
-      Page page;
-      int index = primary_index;
-      do {
-        auto result = page_indices.insert(index);
-        assert(result.second == true);
-
-        page = Page();
-        page.read_from_data_file(indexFile, index * PAGE_SIZE);
-        index = page.overflowPointerIndex;
-      } while (page.overflowPointerIndex != -1);
-    }
-
-    int last_index = -1;
-    for (const int index : page_indices) {
-      printf("index: %d\n", index);
-      last_index = index;
-    }
-
-    // // Loop through each page in the index file
-    // bool pageRead = true;
-    // int pageCount = 0;
-    // while (pageRead) {
-    //   Page page;
-    //   if (pageRead =
-    //           page.read_from_data_file(indexFile, pageCount * PAGE_SIZE)) {
-    //     cout << "Page " << pageCount << " contains " << page.records.size()
-    //          << " records." << endl;
-    //   } else {
-    //     cout << "Page " << pageCount << " is empty or could not be read."
-    //          << endl;
-    //   }
-    //
-    //   pageCount++;
-    // }
-
-    // Close the index file
-    indexFile.close();
   }
 };

@@ -11,7 +11,7 @@ int main() {
   // Create the index
   HashIndex hashIndex("EmployeeIndex.dat");
   // hashIndex.createFromFile("Employee.csv");
-  if (!hashIndex.createFromFile("Employee_large.csv"))
+  if (!hashIndex.createFromFile("Employee.csv"))
     return EXIT_FAILURE;
 
   // Loop to lookup IDs until user is ready to quit
