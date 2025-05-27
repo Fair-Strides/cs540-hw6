@@ -62,7 +62,7 @@ class TestEverything(unittest.TestCase):
         ids = [1, 2, 3, 4, 5, 6]
         output = run(*ids)
         self.assertGreater(len(output), 0, "empty output")
-        for id, line in zip(ids, output.splitlines()[1:]):
+        for id, line in zip(ids, output.splitlines()):
             self.assertTrue(
                 line.startswith(f"ID: {id}"),
                 f"missing or malformed find output for existing employee {id=}: {line}",
@@ -92,7 +92,7 @@ class TestEverything(unittest.TestCase):
                 try:
                     output = run(*ids)
                     self.assertGreater(len(output), 0, "empty output")
-                    for id, line in zip(ids, output.splitlines()[1:]):
+                    for id, line in zip(ids, output.splitlines()):
                         self.assertTrue(
                             line.startswith(f"ID: {id}"),
                             f"missing or malformed find output for existing employee {id=}: {line}",

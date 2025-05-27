@@ -1,27 +1,38 @@
 #include "classes.h"
+#include <cstdlib>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 
 using namespace std;
 
 int main() {
+  bool success = true;
 
   // Create the index
   HashIndex hashIndex("EmployeeIndex.dat");
   // hashIndex.createFromFile("Employee.csv");
-  hashIndex.createFromFile("Employee.csv");
+  if (!hashIndex.createFromFile("Employee_large.csv"))
+    return EXIT_FAILURE;
 
   // Loop to lookup IDs until user is ready to quit
-  // std::string searchID;
+  std::string searchID;
+  // TODO: replace
   // std::cout << "Enter the employee ID to find or type \"exit\" to terminate:
-  // "; while (std::cin >> searchID && searchID != "exit") {
-  //   long long id = std::stoll(searchID);
-  //   std::string record;
-  //   hashIndex.findAndPrintEmployee(id);
-  // }
+  // ";
+  while (std::cin >> searchID && searchID != " exit ") {
+    int id = std::stoi(searchID);
+    std::string record;
 
-  hashIndex.processPages();
+    // printf("RUNNING WITH id=%d\n", id);
 
-  return 0;
+    success &= hashIndex.findAndPrintEmployee(id);
+  }
+
+  // hashIndex.processPages();
+
+  if (success) {
+    return EXIT_SUCCESS;
+  } else {
+    return EXIT_FAILURE;
+  }
 }
